@@ -1,86 +1,47 @@
-use crate::{IntersectionId, Path};
-
-/// A constant ASCII template representing the Settlers of Catan game board layout.
-///
-/// The `TEMPLATE` string is a visual representation of the board where:
-/// - `BB` represents intersections (potential locations for buildings like settlements or cities).
-/// - `*` represents roads connecting intersections.
-/// - `TTTT` represents tiles, which hold resources and dice values.
-///
-/// This template is used as a foundation to overlay dynamic game states, such as player positions,
-/// resources, and other game elements, during serialization and rendering of the board.
-///
-/// Example usage:
-/// ```rust
-/// println!("{}", TEMPLATE);
-/// ```
-const TEMPLATE: &str = "
-          BB * BB * BB * BB * BB * BB * BB
-          *   TTTT  *   TTTT  *   TTTT  *
-     BB * BB * BB * BB * BB * BB * BB * BB * BB
-     *   TTTT  *   TTTT  *   TTTT  *   TTTT  *
-BB * BB * BB * BB * BB * BB * BB * BB * BB * BB * BB
-*   TTTT  *   TTTT  *   TTTT  *   TTTT  *   TTTT  *
-BB * BB * BB * BB * BB * BB * BB * BB * BB * BB * BB
-     *   TTTT  *   TTTT  *   TTTT  *   TTTT  *
-     BB * BB * BB * BB * BB * BB * BB * BB * BB
-          *   TTTT  *   TTTT  *   TTTT  *
-          BB * BB * BB * BB * BB * BB * BB   ";
+use std::cmp::PartialEq;
+use std::convert::TryFrom;
+use crate::game::resources::PlayerResourceCount;
 
 /// An enumeration representing the players in the Settlers of Catan game.
 ///
 /// Each player is identified by a color:
-/// - `Red`: The red player.
-/// - `Blue`: The blue player.
-/// - `White`: The white player.
+/// - `red`: The red player.
+/// - `blue`: The blue player.
+/// - `white`: The white player.
 ///
 /// This enum is used to specify the owner of buildings, roads, or other player-specific attributes.
 ///
 /// Example usage:
 /// ```rust
-/// let current_player = Player::Red;
+/// let current_player = Player::red;
 /// match current_player {
-///     Player::Red => println!("Red player's turn"),
-///     Player::Blue => println!("Blue player's turn"),
-///     Player::White => println!("White player's turn"),
+///     Player::red => println!("red player's turn"),
+///     Player::blue => println!("blue player's turn"),
+///     Player::white => println!("white player's turn"),
 /// }
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum Player {
+pub enum Player {
     Red,
     Blue,
     White,
 }
 
-/// Converts a `Player` to its corresponding character representation.
-///
-/// This implementation maps each player to a unique character:
-/// - `Player::Red` -> `'R'`
-/// - `Player::Blue` -> `'B'`
-/// - `Player::White` -> `'W'`
-///
-/// Example usage:
-/// ```rust
-/// let player = Player::Red;
-/// let player_char: char = player.into();
-/// assert_eq!(player_char, 'R');
-/// ```
-impl From<crate::Player> for char {
-    fn from(player: crate::Player) -> Self {
-        match player {
-            crate::Player::Red => 'R',
-            crate::Player::Blue => 'B',
-            crate::Player::White => 'W',
-        }
-    }
-}
+
+/// A unique identifier for an intersection in the Settlers of Catan game.
+#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
+pub struct IntersectionId(pub usize);
+
+/// Represents a path connecting two intersections.
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+pub struct Path(pub IntersectionId, pub IntersectionId);
 
 /// Attempts to convert a character into a `Player`.
 ///
 /// This implementation maps specific characters to their corresponding `Player` enum:
-/// - `'R'` -> `Player::Red`
-/// - `'B'` -> `Player::Blue`
-/// - `'W'` -> `Player::White`
+/// - `'R'` -> `Player::red`
+/// - `'B'` -> `Player::blue`
+/// - `'W'` -> `Player::white`
 ///
 /// Returns an error string if the character is invalid.
 ///
@@ -89,19 +50,19 @@ impl From<crate::Player> for char {
 /// use std::convert::TryFrom;
 ///
 /// let player = Player::try_from('R').unwrap();
-/// assert_eq!(player, Player::Red);
+/// assert_eq!(player, Player::red);
 ///
 /// let invalid = Player::try_from('X');
 /// assert!(invalid.is_err());
 /// ```
-impl TryFrom<char> for crate::Player {
+impl TryFrom<char> for Player {
     type Error = &'static str;
 
     fn try_from(c: char) -> Result<Self, Self::Error> {
         match c {
-            'R' => Ok(crate::Player::Red),
-            'B' => Ok(crate::Player::Blue),
-            'W' => Ok(crate::Player::White),
+            'R' => Ok(Player::Red),
+            'B' => Ok(Player::Blue),
+            'W' => Ok(Player::White),
             _ => Err("Invalid character for Player"),
         }
     }
@@ -111,26 +72,26 @@ impl TryFrom<char> for crate::Player {
 /// An enumeration representing the different types of tiles in the Settlers of Catan game.
 ///
 /// Each tile provides a specific resource or has no resource:
-/// - `Grain`: Produces grain.
-/// - `Wool`: Produces wool.
-/// - `Brick`: Produces brick.
-/// - `Lumber`: Produces lumber.
-/// - `Ore`: Produces ore.
+/// - `grain`: Produces grain.
+/// - `wool`: Produces wool.
+/// - `brick`: Produces brick.
+/// - `lumber`: Produces lumber.
+/// - `ore`: Produces ore.
 /// - `Nothing`: Represents the desert or other non-productive tiles.
 ///
 /// This enum is used to describe the resource type associated with each tile on the board.
 ///
 /// Example usage:
 /// ```rust
-/// let tile = TileKind::Grain;
+/// let tile = TileKind::grain;
 /// match tile {
-///     TileKind::Grain => println!("This tile produces grain."),
+///     TileKind::grain => println!("This tile produces grain."),
 ///     TileKind::Nothing => println!("This is a desert tile."),
 ///     _ => println!("This tile produces another resource."),
 /// }
 /// ```
 #[derive(Debug, Clone)]
-enum  TileKind {
+pub enum  TileKind {
     Grain,
     Wool,
     Brick,
@@ -140,88 +101,17 @@ enum  TileKind {
 }
 
 
-/// Converts a `TileKind` to its corresponding character representation.
-///
-/// This implementation maps each tile type to a unique character:
-/// - `TileKind::Grain` -> `'G'`
-/// - `TileKind::Wool` -> `'W'`
-/// - `TileKind::Brick` -> `'B'`
-/// - `TileKind::Lumber` -> `'L'`
-/// - `TileKind::Ore` -> `'O'`
-/// - `TileKind::Nothing` -> `'N'`
-///
-/// Example usage:
-/// ```rust
-/// let tile = TileKind::Brick;
-/// let tile_char: char = tile.into();
-/// assert_eq!(tile_char, 'B');
-/// ```
-impl From<crate::TileKind> for char {
-    fn from(tile: crate::TileKind) -> Self {
-        match tile {
-            crate::TileKind::Grain => 'G',
-            crate::TileKind::Wool => 'W',
-            crate::TileKind::Brick => 'B',
-            crate::TileKind::Lumber => 'L',
-            crate::TileKind::Ore => 'O',
-            crate::TileKind::Nothing => 'N',
-        }
-    }
-}
-
-
-/// Attempts to convert a character into a `TileKind`.
-///
-/// This implementation maps specific characters to their corresponding `TileKind` enum:
-/// - `'G'` -> `TileKind::Grain`
-/// - `'W'` -> `TileKind::Wool`
-/// - `'B'` -> `TileKind::Brick`
-/// - `'L'` -> `TileKind::Lumber`
-/// - `'O'` -> `TileKind::Ore`
-/// - `'N'` -> `TileKind::Nothing`
-///
-/// Returns an error string if the character does not correspond to a valid `TileKind`.
-///
-/// # Type Parameters
-/// - `Self::Error`: The error type, which is a static string slice (`&'static str`).
-///
-/// # Arguments
-/// - `c`: The character to be converted.
-///
-/// # Returns
-/// A `Result` containing the corresponding `TileKind` if the character is valid, or an error string if invalid.
-///
-/// # Example
-/// ```rust
-/// use std::convert::TryFrom;
-///
-/// let tile_kind = TileKind::try_from('G').unwrap();
-/// assert_eq!(tile_kind, TileKind::Grain);
-///
-/// let invalid_tile = TileKind::try_from('X');
-/// assert!(invalid_tile.is_err());
-/// ```
-impl TryFrom<char> for crate::TileKind {
-    type Error = &'static str;
-
-    fn try_from(c: char) -> Result<Self, Self::Error> {
-        match c {
-            'G' => Ok(crate::TileKind::Grain),
-            'W' => Ok(crate::TileKind::Wool),
-            'B' => Ok(crate::TileKind::Brick),
-            'L' => Ok(crate::TileKind::Lumber),
-            'O' => Ok(crate::TileKind::Ore),
-            'N' => Ok(crate::TileKind::Nothing),
-            _ => Err("Invalid character for TileKind"),
-        }
-    }
-}
-
 
 /// A unique identifier for a tile in the Settlers of Catan game.
 #[derive(Debug)]
 struct TileId(usize);
 
+
+/// A unique identifier for the position of the robber on the game board.
+#[derive(Eq, PartialEq)]
+pub struct RobberId(pub usize);
+
+
 /// Represents a tile on the game board.
 ///
 /// Each tile has a dice value and a resource type (`TileKind`).
@@ -231,9 +121,9 @@ struct TileId(usize);
 ///
 /// Each tile has a dice value and a resource type (`TileKind`).
 #[derive(Debug)]
-struct Tile {
-    dice: u8,
-    kind: crate::TileKind
+pub struct Tile {
+    pub dice: u8,
+    pub kind: TileKind
 }
 
 /// An enumeration representing the types of buildings in the Settlers of Catan game.
@@ -241,7 +131,7 @@ struct Tile {
 /// - `Settlement`: A basic building that provides fewer points/resources.
 /// - `City`: An upgraded building that provides more points/resources.
 #[derive(Debug, Copy, Clone)]
-enum BuildingKind {
+pub enum BuildingKind {
     Settlement,
     City,
 }
@@ -257,80 +147,50 @@ enum BuildingKind {
 /// let building = BuildingKind::City;
 /// assert_eq!(building.to_char(), 'C');
 /// ```
-impl crate::BuildingKind {
+impl BuildingKind {
     fn to_char(&self) -> char {
         match self {
-            crate::BuildingKind::Settlement => 'S',
-            crate::BuildingKind::City => 'C',
+            BuildingKind::Settlement => 'S',
+            BuildingKind::City => 'C',
         }
     }
 }
-
-/// Attempts to convert a character into a `BuildingKind`.
-///
-/// This implementation maps specific characters to their corresponding `BuildingKind` enum:
-/// - `'S'` -> `BuildingKind::Settlement`
-/// - `'C'` -> `BuildingKind::City`
-///
-/// Returns an error string if the character is invalid.
-///
-/// Example usage:
-/// ```rust
-/// use std::convert::TryFrom;
-///
-/// let building = BuildingKind::try_from('S').unwrap();
-/// assert_eq!(building, BuildingKind::Settlement);
-///
-/// let invalid = BuildingKind::try_from('X');
-/// assert!(invalid.is_err());
-/// ```
-impl TryFrom<char> for crate::BuildingKind {
-    type Error = &'static str;
-    fn try_from(c: char) -> Result<Self, Self::Error> {
-        match c {
-            'S' => Ok(crate::BuildingKind::Settlement),
-            'C' => Ok(crate::BuildingKind::City),
-            _ => Err("Invalid character for BuildingKind"),
-        }
-    }
-}
-
 
 /// Represents a building on the board, including its location (`IntersectionId`),
 /// its type (`BuildingKind`), and the player who owns it.
 #[derive(Debug, Copy, Clone)]
-struct Building {
-    intersection_id: IntersectionId,
-    kind: crate::BuildingKind,
-    player: crate::Player
+pub struct Building {
+    pub intersection_id: IntersectionId,
+    pub kind: BuildingKind,
+    pub player: Player
 }
 
 
 /// Represents a road on the board, including its location (`PathId`)
 /// and the player who owns it.
 #[derive(Debug)]
-struct Road {
-    id: crate::PathId,
-    player: crate::Player
+pub struct Road {
+    pub id: PathId,
+    pub player: Player
 }
 
 
 /// A unique identifier for a path (road) in the Settlers of Catan game.
 #[derive(Debug, Eq, PartialEq, Hash)]
-struct PathId(usize);
+pub struct PathId(pub usize);
 
 #[derive(Debug)]
-struct Intersection {
-    paths: Vec<crate::PathId>,
-    tiles: Vec<crate::TileId>,
+pub struct Intersection {
+    pub paths: Vec<PathId>,
+    tiles: Vec<TileId>,
 }
 
 /// Represents an intersection on the game board.
 ///
 /// Each intersection connects multiple paths (`PathId`) and may touch multiple tiles (`TileId`).
-impl crate::Intersection {
+impl Intersection {
     /// Creates a new `Intersection` with the given paths and tiles.
-    fn new(paths: Vec<crate::PathId>, tiles: Vec<crate::TileId>) -> crate::Intersection {
+    fn new(paths: Vec<PathId>, tiles: Vec<TileId>) -> Intersection {
         Self {
             paths,
             tiles,
@@ -338,9 +198,9 @@ impl crate::Intersection {
     }
 }
 
-const PATHS: usize = 72;
-const INTERSECTIONS: usize = 54;
-const TILES: usize = 19;
+pub const PATHS: usize = 72;
+pub const INTERSECTIONS: usize = 54;
+pub const TILES: usize = 19;
 
 /// Represents the game board in Settlers of Catan.
 ///
@@ -348,13 +208,13 @@ const TILES: usize = 19;
 /// - `paths`: An array of roads (`Path`) connecting intersections.
 /// - `intersections`: An array of intersections where buildings can be placed.
 /// - `tiles`: An array of resource tiles on the board.
-struct Board {
-    paths: [Path; crate::PATHS],
-    intersections: [crate::Intersection; crate::INTERSECTIONS],
-    tiles: [crate::Tile; crate::TILES]
+pub struct Board {
+    pub paths: [Path; PATHS],
+    pub intersections: [Intersection; INTERSECTIONS],
+    pub tiles: [Tile; TILES]
 }
 
-impl crate::Board {
+impl Board {
     /// Creates a new `Board` with the given tiles.
     ///
     /// The paths and intersections are pre-defined for the standard Catan board.
@@ -365,13 +225,13 @@ impl crate::Board {
     /// Example usage:
     /// ```rust
     /// let tiles = [
-    ///     Tile { dice: 10, kind: TileKind::Grain },
-    ///     Tile { dice: 2, kind: TileKind::Wool },
+    ///     Tile { dice: 10, kind: TileKind::grain },
+    ///     Tile { dice: 2, kind: TileKind::wool },
     ///     // ...remaining tiles...
     /// ];
     /// let board = Board::new(tiles);
     /// ```
-    fn new(tiles: [crate::Tile; 19]) -> crate::Board {
+    pub fn new(tiles: [Tile; 19]) -> Board {
         let paths: [Path;72] = [
             Path(IntersectionId(0), IntersectionId(1)), // 0
             Path(IntersectionId(1), IntersectionId(2)), // 1
@@ -447,61 +307,61 @@ impl crate::Board {
             Path(IntersectionId(52), IntersectionId(53)), // 71
         ];
 
-        let intersections: [crate::Intersection; 54] = [
-            crate::Intersection::new(vec![crate::PathId(0), crate::PathId(6)], vec![crate::TileId(0)]), // 0
-            crate::Intersection::new(vec![crate::PathId(0), crate::PathId(1)], vec![crate::TileId(0)]), // 1
-            crate::Intersection::new(vec![crate::PathId(1), crate::PathId(2), crate::PathId(7)], vec![crate::TileId(0), crate::TileId(1)]), // 2
-            crate::Intersection::new(vec![crate::PathId(2), crate::PathId(3)], vec![crate::TileId(1)]), // 3
-            crate::Intersection::new(vec![crate::PathId(3), crate::PathId(4), crate::PathId(8)], vec![crate::TileId(1), crate::TileId(2)]), // 4
-            crate::Intersection::new(vec![crate::PathId(4), crate::PathId(5)], vec![crate::TileId(2)]), // 5
-            crate::Intersection::new(vec![crate::PathId(5), crate::PathId(9)], vec![crate::TileId(2)]), // 6
-            crate::Intersection::new(vec![crate::PathId(10), crate::PathId(18)], vec![crate::TileId(3)]),  // 7
-            crate::Intersection::new(vec![crate::PathId(10), crate::PathId(6), crate::PathId(11)], vec![crate::TileId(3), crate::TileId(0)]),  // 8
-            crate::Intersection::new(vec![crate::PathId(11), crate::PathId(12), crate::PathId(19)], vec![crate::TileId(3), crate::TileId(4)]), // 9
-            crate::Intersection::new(vec![crate::PathId(7), crate::PathId(12), crate::PathId(13)], vec![crate::TileId(0), crate::TileId(1), crate::TileId(4)]), // 10
-            crate::Intersection::new(vec![crate::PathId(13), crate::PathId(14), crate::PathId(20)], vec![crate::TileId(1), crate::TileId(4), crate::TileId(5)]), // 11
-            crate::Intersection::new(vec![crate::PathId(8), crate::PathId(14), crate::PathId(15)], vec![crate::TileId(1), crate::TileId(2), crate::TileId(5)]), // 12
-            crate::Intersection::new(vec![crate::PathId(15), crate::PathId(16), crate::PathId(21)], vec![crate::TileId(2), crate::TileId(5), crate::TileId(6)]), // 13
-            crate::Intersection::new(vec![crate::PathId(9), crate::PathId(16), crate::PathId(17)], vec![crate::TileId(2), crate::TileId(6)]), // 14
-            crate::Intersection::new(vec![crate::PathId(17), crate::PathId(22)], vec![crate::TileId(6)]), // 15
-            crate::Intersection::new(vec![crate::PathId(23), crate::PathId(33)], vec![crate::TileId(7)]), // 16
-            crate::Intersection::new(vec![crate::PathId(18), crate::PathId(23), crate::PathId(24)], vec![crate::TileId(3), crate::TileId(7)]), // 17
-            crate::Intersection::new(vec![crate::PathId(24), crate::PathId(25), crate::PathId(34)], vec![crate::TileId(3), crate::TileId(7), crate::TileId(8)]), // 18
-            crate::Intersection::new(vec![crate::PathId(19), crate::PathId(25), crate::PathId(26)], vec![crate::TileId(3), crate::TileId(4), crate::TileId(8)]), // 19
-            crate::Intersection::new(vec![crate::PathId(26), crate::PathId(27), crate::PathId(35)], vec![crate::TileId(4), crate::TileId(8), crate::TileId(9)]), // 20
-            crate::Intersection::new(vec![crate::PathId(20), crate::PathId(27), crate::PathId(28)], vec![crate::TileId(4), crate::TileId(5), crate::TileId(9)]), // 21
-            crate::Intersection::new(vec![crate::PathId(28), crate::PathId(29), crate::PathId(36)], vec![crate::TileId(5), crate::TileId(9), crate::TileId(10)]), // 22
-            crate::Intersection::new(vec![crate::PathId(21), crate::PathId(29), crate::PathId(30)], vec![crate::TileId(5), crate::TileId(6), crate::TileId(10)]), // 23
-            crate::Intersection::new(vec![crate::PathId(30), crate::PathId(31), crate::PathId(37)], vec![crate::TileId(6), crate::TileId(10), crate::TileId(11)]), // 24
-            crate::Intersection::new(vec![crate::PathId(22), crate::PathId(31), crate::PathId(32)], vec![crate::TileId(6), crate::TileId(11)]), // 25
-            crate::Intersection::new(vec![crate::PathId(32), crate::PathId(38)], vec![crate::TileId(11)]), // 26
-            crate::Intersection::new(vec![crate::PathId(33), crate::PathId(39)], vec![crate::TileId(7)]), // 27
-            crate::Intersection::new(vec![crate::PathId(39), crate::PathId(40), crate::PathId(49)], vec![crate::TileId(7), crate::TileId(12)]), // 28
-            crate::Intersection::new(vec![crate::PathId(34), crate::PathId(40), crate::PathId(41)], vec![crate::TileId(7), crate::TileId(8), crate::TileId(12)]), // 29
-            crate::Intersection::new(vec![crate::PathId(41), crate::PathId(42), crate::PathId(50)], vec![crate::TileId(8), crate::TileId(12), crate::TileId(13)]), // 30
-            crate::Intersection::new(vec![crate::PathId(35), crate::PathId(42), crate::PathId(43)], vec![crate::TileId(8), crate::TileId(9), crate::TileId(13)]), // 31
-            crate::Intersection::new(vec![crate::PathId(43), crate::PathId(44), crate::PathId(51)], vec![crate::TileId(9), crate::TileId(13), crate::TileId(14)]), // 32
-            crate::Intersection::new(vec![crate::PathId(36), crate::PathId(44), crate::PathId(45)], vec![crate::TileId(9), crate::TileId(10), crate::TileId(14)]), // 33
-            crate::Intersection::new(vec![crate::PathId(45), crate::PathId(46), crate::PathId(52)], vec![crate::TileId(10), crate::TileId(14), crate::TileId(15)]), // 34
-            crate::Intersection::new(vec![crate::PathId(37), crate::PathId(46), crate::PathId(47)], vec![crate::TileId(10), crate::TileId(11), crate::TileId(15)]), // 35
-            crate::Intersection::new(vec![crate::PathId(47), crate::PathId(48), crate::PathId(53)], vec![crate::TileId(11), crate::TileId(15)]), // 36
-            crate::Intersection::new(vec![crate::PathId(38), crate::PathId(48)], vec![crate::TileId(11)]), // 37
-            crate::Intersection::new(vec![crate::PathId(49), crate::PathId(54)], vec![crate::TileId(12)]), // 38
-            crate::Intersection::new(vec![crate::PathId(54), crate::PathId(55), crate::PathId(62)], vec![crate::TileId(12), crate::TileId(16)]), // 39
-            crate::Intersection::new(vec![crate::PathId(50), crate::PathId(55), crate::PathId(56)], vec![crate::TileId(12), crate::TileId(13), crate::TileId(16)]), // 40
-            crate::Intersection::new(vec![crate::PathId(56), crate::PathId(57), crate::PathId(63)], vec![crate::TileId(13), crate::TileId(16), crate::TileId(17)]), // 41
-            crate::Intersection::new(vec![crate::PathId(51), crate::PathId(57), crate::PathId(58)], vec![crate::TileId(13), crate::TileId(14), crate::TileId(17)]), // 42
-            crate::Intersection::new(vec![crate::PathId(58), crate::PathId(59), crate::PathId(64)], vec![crate::TileId(14), crate::TileId(17), crate::TileId(18)]), // 43
-            crate::Intersection::new(vec![crate::PathId(52), crate::PathId(59), crate::PathId(60)], vec![crate::TileId(14), crate::TileId(15), crate::TileId(18)]), // 44
-            crate::Intersection::new(vec![crate::PathId(60), crate::PathId(61), crate::PathId(65)], vec![crate::TileId(15), crate::TileId(18)]), // 45
-            crate::Intersection::new(vec![crate::PathId(53), crate::PathId(61)], vec![crate::TileId(15)]), // 46
-            crate::Intersection::new(vec![crate::PathId(62), crate::PathId(66)], vec![crate::TileId(16)]), // 47
-            crate::Intersection::new(vec![crate::PathId(66), crate::PathId(67)], vec![crate::TileId(16)]), // 48
-            crate::Intersection::new(vec![crate::PathId(63), crate::PathId(67), crate::PathId(68)], vec![crate::TileId(16), crate::TileId(17)]), // 49
-            crate::Intersection::new(vec![crate::PathId(68), crate::PathId(69)], vec![crate::TileId(17)]), // 50
-            crate::Intersection::new(vec![crate::PathId(64), crate::PathId(69), crate::PathId(70)], vec![crate::TileId(17), crate::TileId(18)]), // 51
-            crate::Intersection::new(vec![crate::PathId(70), crate::PathId(71)], vec![crate::TileId(18)]), // 52
-            crate::Intersection::new(vec![crate::PathId(65), crate::PathId(71)], vec![crate::TileId(18)]), // 53
+        let intersections: [Intersection; 54] = [
+            Intersection::new(vec![PathId(0), PathId(6)], vec![TileId(0)]), // 0
+            Intersection::new(vec![PathId(0), PathId(1)], vec![TileId(0)]), // 1
+            Intersection::new(vec![PathId(1), PathId(2), PathId(7)], vec![TileId(0), TileId(1)]), // 2
+            Intersection::new(vec![PathId(2), PathId(3)], vec![TileId(1)]), // 3
+            Intersection::new(vec![PathId(3), PathId(4), PathId(8)], vec![TileId(1), TileId(2)]), // 4
+            Intersection::new(vec![PathId(4), PathId(5)], vec![TileId(2)]), // 5
+            Intersection::new(vec![PathId(5), PathId(9)], vec![TileId(2)]), // 6
+            Intersection::new(vec![PathId(10), PathId(18)], vec![TileId(3)]),  // 7
+            Intersection::new(vec![PathId(10), PathId(6), PathId(11)], vec![TileId(3), TileId(0)]),  // 8
+            Intersection::new(vec![PathId(11), PathId(12), PathId(19)], vec![TileId(3), TileId(4)]), // 9
+            Intersection::new(vec![PathId(7), PathId(12), PathId(13)], vec![TileId(0), TileId(1), TileId(4)]), // 10
+            Intersection::new(vec![PathId(13), PathId(14), PathId(20)], vec![TileId(1), TileId(4), TileId(5)]), // 11
+            Intersection::new(vec![PathId(8), PathId(14), PathId(15)], vec![TileId(1), TileId(2), TileId(5)]), // 12
+            Intersection::new(vec![PathId(15), PathId(16), PathId(21)], vec![TileId(2), TileId(5), TileId(6)]), // 13
+            Intersection::new(vec![PathId(9), PathId(16), PathId(17)], vec![TileId(2), TileId(6)]), // 14
+            Intersection::new(vec![PathId(17), PathId(22)], vec![TileId(6)]), // 15
+            Intersection::new(vec![PathId(23), PathId(33)], vec![TileId(7)]), // 16
+            Intersection::new(vec![PathId(18), PathId(23), PathId(24)], vec![TileId(3), TileId(7)]), // 17
+            Intersection::new(vec![PathId(24), PathId(25), PathId(34)], vec![TileId(3), TileId(7), TileId(8)]), // 18
+            Intersection::new(vec![PathId(19), PathId(25), PathId(26)], vec![TileId(3), TileId(4), TileId(8)]), // 19
+            Intersection::new(vec![PathId(26), PathId(27), PathId(35)], vec![TileId(4), TileId(8), TileId(9)]), // 20
+            Intersection::new(vec![PathId(20), PathId(27), PathId(28)], vec![TileId(4), TileId(5), TileId(9)]), // 21
+            Intersection::new(vec![PathId(28), PathId(29), PathId(36)], vec![TileId(5), TileId(9), TileId(10)]), // 22
+            Intersection::new(vec![PathId(21), PathId(29), PathId(30)], vec![TileId(5), TileId(6), TileId(10)]), // 23
+            Intersection::new(vec![PathId(30), PathId(31), PathId(37)], vec![TileId(6), TileId(10), TileId(11)]), // 24
+            Intersection::new(vec![PathId(22), PathId(31), PathId(32)], vec![TileId(6), TileId(11)]), // 25
+            Intersection::new(vec![PathId(32), PathId(38)], vec![TileId(11)]), // 26
+            Intersection::new(vec![PathId(33), PathId(39)], vec![TileId(7)]), // 27
+            Intersection::new(vec![PathId(39), PathId(40), PathId(49)], vec![TileId(7), TileId(12)]), // 28
+            Intersection::new(vec![PathId(34), PathId(40), PathId(41)], vec![TileId(7), TileId(8), TileId(12)]), // 29
+            Intersection::new(vec![PathId(41), PathId(42), PathId(50)], vec![TileId(8), TileId(12), TileId(13)]), // 30
+            Intersection::new(vec![PathId(35), PathId(42), PathId(43)], vec![TileId(8), TileId(9), TileId(13)]), // 31
+            Intersection::new(vec![PathId(43), PathId(44), PathId(51)], vec![TileId(9), TileId(13), TileId(14)]), // 32
+            Intersection::new(vec![PathId(36), PathId(44), PathId(45)], vec![TileId(9), TileId(10), TileId(14)]), // 33
+            Intersection::new(vec![PathId(45), PathId(46), PathId(52)], vec![TileId(10), TileId(14), TileId(15)]), // 34
+            Intersection::new(vec![PathId(37), PathId(46), PathId(47)], vec![TileId(10), TileId(11), TileId(15)]), // 35
+            Intersection::new(vec![PathId(47), PathId(48), PathId(53)], vec![TileId(11), TileId(15)]), // 36
+            Intersection::new(vec![PathId(38), PathId(48)], vec![TileId(11)]), // 37
+            Intersection::new(vec![PathId(49), PathId(54)], vec![TileId(12)]), // 38
+            Intersection::new(vec![PathId(54), PathId(55), PathId(62)], vec![TileId(12), TileId(16)]), // 39
+            Intersection::new(vec![PathId(50), PathId(55), PathId(56)], vec![TileId(12), TileId(13), TileId(16)]), // 40
+            Intersection::new(vec![PathId(56), PathId(57), PathId(63)], vec![TileId(13), TileId(16), TileId(17)]), // 41
+            Intersection::new(vec![PathId(51), PathId(57), PathId(58)], vec![TileId(13), TileId(14), TileId(17)]), // 42
+            Intersection::new(vec![PathId(58), PathId(59), PathId(64)], vec![TileId(14), TileId(17), TileId(18)]), // 43
+            Intersection::new(vec![PathId(52), PathId(59), PathId(60)], vec![TileId(14), TileId(15), TileId(18)]), // 44
+            Intersection::new(vec![PathId(60), PathId(61), PathId(65)], vec![TileId(15), TileId(18)]), // 45
+            Intersection::new(vec![PathId(53), PathId(61)], vec![TileId(15)]), // 46
+            Intersection::new(vec![PathId(62), PathId(66)], vec![TileId(16)]), // 47
+            Intersection::new(vec![PathId(66), PathId(67)], vec![TileId(16)]), // 48
+            Intersection::new(vec![PathId(63), PathId(67), PathId(68)], vec![TileId(16), TileId(17)]), // 49
+            Intersection::new(vec![PathId(68), PathId(69)], vec![TileId(17)]), // 50
+            Intersection::new(vec![PathId(64), PathId(69), PathId(70)], vec![TileId(17), TileId(18)]), // 51
+            Intersection::new(vec![PathId(70), PathId(71)], vec![TileId(18)]), // 52
+            Intersection::new(vec![PathId(65), PathId(71)], vec![TileId(18)]), // 53
         ];
 
         Self {
@@ -512,22 +372,20 @@ impl crate::Board {
     }
 }
 
-/// A unique identifier for the position of the robber on the game board.
-#[derive(Eq, PartialEq)]
-struct RobberId(usize);
-
 /// Represents the state of the game, including:
 /// - `buildings`: A list of all buildings on the board.
 /// - `roads`: A list of all roads on the board.
 /// - `robber`: The current position of the robber.
-struct State {
-    buildings: Vec<crate::Building>,
-    roads: Vec<crate::Road>,
-    robber: crate::RobberId,
+pub struct State {
+    pub buildings: Vec<Building>,
+    pub roads: Vec<Road>,
+    pub robber: RobberId,
+    pub resources: PlayerResourceCount,
 }
 
 /// Represents the overall game state, including the board and the state of all players.
-struct Game {
-    board: crate::Board,
-    state: crate::State,
+pub struct Game {
+    pub board: Board,
+    pub state: State,
 }
+

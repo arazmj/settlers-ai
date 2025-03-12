@@ -1,0 +1,10 @@
+[package]
+name = "settlers"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+fastly = "0.10.0"
+
+[lib]
+doctest = false

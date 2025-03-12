@@ -1,5 +1,5 @@
 pub mod board;
 pub mod encoding;
+mod resources;
 
-pub use board::*;
-pub use encoding::*;
+pub use self::board::*;
