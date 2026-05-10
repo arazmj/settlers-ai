@@ -307,8 +307,17 @@ impl TryFrom<String> for Game {
             }
         }
 
-        let resource_lines: Vec<&str> = board_str.lines().clone()
-            .filter(|p| p.starts_with("W") || p.starts_with("B") || p.starts_with("R"))
+        // Resource lines are "W/R/B <grain> <wool> <brick> <lumber> <ore>".
+        // Road lines can also start with W/B/R, but their second token is always a
+        // tile code like "10G!" — not a plain integer.  We use that to distinguish them.
+        let resource_lines: Vec<&str> = board_str.lines()
+            .filter(|p| {
+                (p.starts_with("W ") || p.starts_with("R ") || p.starts_with("B "))
+                    && p.split_whitespace()
+                        .nth(1)
+                        .map(|t| t.parse::<i8>().is_ok())
+                        .unwrap_or(false)
+            })
             .collect();
 
         // G  W  B  L  O
@@ -433,6 +442,12 @@ impl From<Game> for String {
 
             output = output.replacen("*", &cell, 1);
         }
+
+        // Append resource counts as "W/R/B grain wool brick lumber ore"
+        let r = &game.state.resources;
+        output.push_str(&format!("\nW {} {} {} {} {}", r.white.grain, r.white.wool, r.white.brick, r.white.lumber, r.white.ore));
+        output.push_str(&format!("\nR {} {} {} {} {}", r.red.grain, r.red.wool, r.red.brick, r.red.lumber, r.red.ore));
+        output.push_str(&format!("\nB {} {} {} {} {}", r.blue.grain, r.blue.wool, r.blue.brick, r.blue.lumber, r.blue.ore));
 
         output
     }

@@ -294,7 +294,7 @@ impl Board {
             Path(IntersectionId(42), IntersectionId(43)), // 58
             Path(IntersectionId(43), IntersectionId(44)), // 59
             Path(IntersectionId(44), IntersectionId(45)), // 60
-            Path(IntersectionId(45), IntersectionId(45)), // 61
+            Path(IntersectionId(45), IntersectionId(46)), // 61
             Path(IntersectionId(39), IntersectionId(47)), // 62
             Path(IntersectionId(41), IntersectionId(49)), // 63
             Path(IntersectionId(43), IntersectionId(51)), // 64
