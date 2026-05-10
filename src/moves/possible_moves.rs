@@ -119,24 +119,21 @@ impl Game {
     /// ```
     pub(crate) fn possible_road_paths(&self, player: Player) -> HashSet<Path> {
         let graph = self.road_graph(player);
-        let mut leaf_possible: HashSet<usize> = HashSet::new();
-        let mut leaf_already_made: HashSet<usize> = HashSet::new();
-        for key in graph.keys() {
-            let values = graph.get(key).unwrap();
-            if values.len() == 1 {
-                leaf_already_made.insert(values[0]);
-                leaf_possible.insert(*key);
-            }
-        }
+        // Any intersection connected to the player's road network is a valid origin.
+        // (Leaf-only detection was wrong for cyclic road networks: a ring has no
+        // degree-1 nodes, so the old code returned an empty set.)
+        let player_intersections: HashSet<usize> = graph.keys().copied().collect();
+        let occupied_path_ids: HashSet<usize> = self.state.roads.iter()
+            .map(|r| r.id.0)
+            .collect();
 
         let mut possible_road_paths: HashSet<Path> = HashSet::new();
-        for path in self.board.paths.iter() {
-            let Path(IntersectionId(a), IntersectionId(b)) = path;
-            if leaf_possible.contains(a) && !leaf_already_made.contains(b) {
-                possible_road_paths.insert(path.clone());
+        for (path_id, path) in self.board.paths.iter().enumerate() {
+            if occupied_path_ids.contains(&path_id) {
+                continue;
             }
-
-            if leaf_possible.contains(b) && !leaf_already_made.contains(a) {
+            let Path(IntersectionId(a), IntersectionId(b)) = path;
+            if player_intersections.contains(a) || player_intersections.contains(b) {
                 possible_road_paths.insert(path.clone());
             }
         }
@@ -268,14 +265,21 @@ oo . oo . RS R oo . oo . oo . oo . oo . WS W oo . oo
 W 0 0 0 0 0
 R 0 0 0 0 0
 B 0 0 0 0 0".to_string().try_into().unwrap();
+        // All unoccupied paths adjacent to any White road intersection (not just
+        // degree-1 leaf nodes — interior junctions are valid extension points too).
         let s: HashSet<Path> = vec![
-            Path(IntersectionId(19), IntersectionId(20)),
-            Path(IntersectionId(18), IntersectionId(29)),
             Path(IntersectionId(3),  IntersectionId(4)),
-            Path(IntersectionId(17), IntersectionId(18)),
             Path(IntersectionId(4),  IntersectionId(12)),
             Path(IntersectionId(9),  IntersectionId(19)),
-            Path(IntersectionId(45), IntersectionId(46)), // newly reachable after fixing path-61 self-loop
+            Path(IntersectionId(14), IntersectionId(15)),
+            Path(IntersectionId(17), IntersectionId(18)),
+            Path(IntersectionId(18), IntersectionId(29)),
+            Path(IntersectionId(19), IntersectionId(20)),
+            Path(IntersectionId(22), IntersectionId(23)),
+            Path(IntersectionId(24), IntersectionId(25)),
+            Path(IntersectionId(34), IntersectionId(35)),
+            Path(IntersectionId(36), IntersectionId(37)),
+            Path(IntersectionId(45), IntersectionId(46)),
         ].into_iter().collect();
         assert_eq!(s, game.possible_road_paths(Player::White));
     
