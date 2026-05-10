@@ -104,17 +104,13 @@ pub enum  TileKind {
 
 /// A unique identifier for a tile in the Settlers of Catan game.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct TileId(usize);
 
 
 /// A unique identifier for the position of the robber on the game board.
 #[derive(Eq, PartialEq)]
 pub struct RobberId(pub usize);
-
-
-/// Represents a tile on the game board.
-///
-/// Each tile has a dice value and a resource type (`TileKind`).
 
 
 /// Represents a tile on the game board.
@@ -134,26 +130,6 @@ pub struct Tile {
 pub enum BuildingKind {
     Settlement,
     City,
-}
-
-/// Converts a `BuildingKind` to its corresponding character representation.
-///
-/// This implementation maps each building type to a unique character:
-/// - `BuildingKind::Settlement` -> `'S'`
-/// - `BuildingKind::City` -> `'C'`
-///
-/// Example usage:
-/// ```rust
-/// let building = BuildingKind::City;
-/// assert_eq!(building.to_char(), 'C');
-/// ```
-impl BuildingKind {
-    fn to_char(&self) -> char {
-        match self {
-            BuildingKind::Settlement => 'S',
-            BuildingKind::City => 'C',
-        }
-    }
 }
 
 /// Represents a building on the board, including its location (`IntersectionId`),
@@ -182,6 +158,7 @@ pub struct PathId(pub usize);
 #[derive(Debug)]
 pub struct Intersection {
     pub paths: Vec<PathId>,
+    #[allow(dead_code)]
     tiles: Vec<TileId>,
 }
 

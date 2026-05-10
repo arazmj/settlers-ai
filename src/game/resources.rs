@@ -12,6 +12,7 @@ pub struct ResourceCount {
 }
 
 #[derive(Eq, Hash, PartialEq, Debug)]
+#[allow(dead_code)]
 enum Buys {
     Road,
     Settlement,
@@ -51,6 +52,7 @@ impl Index<Player> for PlayerResourceCount {
 }
 
 
+#[allow(dead_code)]
 const ROAD_COST: ResourceCount = ResourceCount{
     grain: 0,
     wool: 0,
@@ -59,7 +61,8 @@ const ROAD_COST: ResourceCount = ResourceCount{
     ore: 0,
 };
 
-const SETTLEMENT_COST: ResourceCount = ResourceCount{
+#[allow(dead_code)]
+pub(crate) const SETTLEMENT_COST: ResourceCount = ResourceCount{
     grain: 1,
     wool: 1,
     brick: 1,
@@ -67,6 +70,7 @@ const SETTLEMENT_COST: ResourceCount = ResourceCount{
     ore: 0,
 };
 
+#[allow(dead_code)]
 const CITY_COST: ResourceCount = ResourceCount{
     grain: 3,
     wool: 0,
@@ -75,24 +79,27 @@ const CITY_COST: ResourceCount = ResourceCount{
     ore: 2,
 };
 
+#[allow(dead_code)]
+fn possible_buys_dfs(resource_count: ResourceCount, buys: &mut HashSet<Buys>) {
+    let zip = [ROAD_COST, SETTLEMENT_COST, CITY_COST].iter().zip([Buys::Road, Buys::Settlement, Buys::City]);
+    for (cost, buy) in zip {
+        let sub_count = resource_count.clone() - cost.clone();
+        if sub_count.is_positive() {
+            buys.insert(buy);
+            possible_buys_dfs(sub_count, buys);
+        }
+    }
+}
+
 impl ResourceCount {
     pub fn is_positive(&self) -> bool {
         self.grain >= 0 && self.wool >= 0 && self.brick >= 0 && self.lumber >= 0 && self.ore >= 0
     }
 
-    fn possible_buys_dfs(&self, resource_count: ResourceCount, buys: &mut HashSet<Buys>) {
-        let zip = [ROAD_COST, SETTLEMENT_COST, CITY_COST].iter().zip([Buys::Road, Buys::Settlement, Buys::City]);
-        for (cost, buy) in zip {
-            let sub_count = resource_count.clone() - cost.clone();
-            if sub_count.is_positive() {
-                buys.insert(buy);
-                self.possible_buys_dfs(sub_count, buys);
-            }
-        }
-    }
+    #[allow(dead_code)]
     fn possible_buys(&self) -> HashSet<Buys> {
         let mut buys: HashSet<Buys> = HashSet::new();
-        self.possible_buys_dfs(self.clone(), &mut buys);
+        possible_buys_dfs(self.clone(), &mut buys);
         buys
     }
 

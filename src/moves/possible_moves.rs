@@ -1,47 +1,50 @@
 use crate::game::{Building, IntersectionId, Path, Player};
 use std::collections::{HashMap, HashSet};
 use crate::game::Game;
-impl Game {
-    // Backtracking DFS that tracks visited edges (not nodes), so cyclic road networks
-    // are handled correctly. Catan roads can form loops; a node may be revisited as
-    // long as the edge used to reach it hasn't been traversed yet in this path.
-    fn dfs_edges(
-        &self,
-        node: usize,
-        graph: &HashMap<usize, Vec<(usize, usize)>>,
-        visited_edges: &mut HashSet<usize>,
-        depth: usize,
-    ) -> usize {
-        let mut max_depth = depth;
-        if let Some(neighbors) = graph.get(&node) {
-            for &(next, edge_id) in neighbors {
-                if !visited_edges.contains(&edge_id) {
-                    visited_edges.insert(edge_id);
-                    let result = self.dfs_edges(next, graph, visited_edges, depth + 1);
-                    max_depth = max_depth.max(result);
-                    visited_edges.remove(&edge_id);
-                }
+
+// Backtracking DFS that tracks visited edges (not nodes), so cyclic road networks
+// are handled correctly. Catan roads can form loops; a node may be revisited as
+// long as the edge used to reach it hasn't been traversed yet in this path.
+#[allow(dead_code)]
+fn dfs_edges(
+    node: usize,
+    graph: &HashMap<usize, Vec<(usize, usize)>>,
+    visited_edges: &mut HashSet<usize>,
+    depth: usize,
+) -> usize {
+    let mut max_depth = depth;
+    if let Some(neighbors) = graph.get(&node) {
+        for &(next, edge_id) in neighbors {
+            if !visited_edges.contains(&edge_id) {
+                visited_edges.insert(edge_id);
+                let result = dfs_edges(next, graph, visited_edges, depth + 1);
+                max_depth = max_depth.max(result);
+                visited_edges.remove(&edge_id);
             }
         }
-        max_depth
     }
+    max_depth
+}
 
+impl Game {
+    #[allow(dead_code)]
     pub(crate) fn longest_road(&self, player: Player) -> usize {
         let graph = self.road_graph_with_edges(player);
         graph.keys()
-            .map(|&start| self.dfs_edges(start, &graph, &mut HashSet::new(), 0))
+            .map(|&start| dfs_edges(start, &graph, &mut HashSet::new(), 0))
             .max()
             .unwrap_or(0)
     }
 
+    #[allow(dead_code)]
     fn road_graph_with_edges(&self, player: Player) -> HashMap<usize, Vec<(usize, usize)>> {
         let mut graph: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
         for road in &self.state.roads {
             if road.player == player {
                 let Path(IntersectionId(a), IntersectionId(b)) = self.board.paths[road.id.0];
                 let edge_id = road.id.0;
-                graph.entry(a).or_insert_with(Vec::new).push((b, edge_id));
-                graph.entry(b).or_insert_with(Vec::new).push((a, edge_id));
+                graph.entry(a).or_default().push((b, edge_id));
+                graph.entry(b).or_default().push((a, edge_id));
             }
         }
         graph
@@ -61,8 +64,8 @@ impl Game {
         for road in &self.state.roads {
             if road.player == player {
                 let Path(IntersectionId(a), IntersectionId(b)) = self.board.paths[road.id.0];
-                graph.entry(a).or_insert_with(Vec::new).push(b);
-                graph.entry(b).or_insert_with(Vec::new).push(a);
+                graph.entry(a).or_default().push(b);
+                graph.entry(b).or_default().push(a);
             }
         }
         graph
