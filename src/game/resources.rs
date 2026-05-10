@@ -32,7 +32,7 @@ impl Index<TileKind> for ResourceCount {
         }
     }
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PlayerResourceCount {
     pub red: ResourceCount,
     pub blue: ResourceCount,
@@ -53,7 +53,7 @@ impl Index<Player> for PlayerResourceCount {
 
 
 #[allow(dead_code)]
-const ROAD_COST: ResourceCount = ResourceCount{
+pub(crate) const ROAD_COST: ResourceCount = ResourceCount{
     grain: 0,
     wool: 0,
     brick: 1,
@@ -71,12 +71,12 @@ pub(crate) const SETTLEMENT_COST: ResourceCount = ResourceCount{
 };
 
 #[allow(dead_code)]
-const CITY_COST: ResourceCount = ResourceCount{
-    grain: 3,
+pub(crate) const CITY_COST: ResourceCount = ResourceCount{
+    grain: 2,
     wool: 0,
     brick: 0,
     lumber: 0,
-    ore: 2,
+    ore: 3,
 };
 
 #[allow(dead_code)]

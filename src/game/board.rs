@@ -103,20 +103,20 @@ pub enum  TileKind {
 
 
 /// A unique identifier for a tile in the Settlers of Catan game.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 struct TileId(usize);
 
 
 /// A unique identifier for the position of the robber on the game board.
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 pub struct RobberId(pub usize);
 
 
 /// Represents a tile on the game board.
 ///
 /// Each tile has a dice value and a resource type (`TileKind`).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tile {
     pub dice: u8,
     pub kind: TileKind
@@ -144,7 +144,7 @@ pub struct Building {
 
 /// Represents a road on the board, including its location (`PathId`)
 /// and the player who owns it.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Road {
     pub id: PathId,
     pub player: Player
@@ -152,10 +152,10 @@ pub struct Road {
 
 
 /// A unique identifier for a path (road) in the Settlers of Catan game.
-#[derive(Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct PathId(pub usize);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Intersection {
     pub paths: Vec<PathId>,
     #[allow(dead_code)]
@@ -185,6 +185,7 @@ pub const TILES: usize = 19;
 /// - `paths`: An array of roads (`Path`) connecting intersections.
 /// - `intersections`: An array of intersections where buildings can be placed.
 /// - `tiles`: An array of resource tiles on the board.
+#[derive(Clone)]
 pub struct Board {
     pub paths: [Path; PATHS],
     pub intersections: [Intersection; INTERSECTIONS],
@@ -347,12 +348,28 @@ impl Board {
             tiles,
         }
     }
+
+    /// Returns the sum of dice probabilities for all tiles adjacent to `intersection_id`.
+    /// Settlement produces 1× this value per turn; a City produces 2×.
+    pub fn intersection_dice_income(&self, intersection_id: usize) -> u32 {
+        self.intersections[intersection_id].tiles.iter()
+            .map(|tile_id| match self.tiles[tile_id.0].dice {
+                2 | 12 => 1,
+                3 | 11 => 2,
+                4 | 10 => 3,
+                5 | 9  => 4,
+                6 | 8  => 5,
+                _      => 0,
+            })
+            .sum()
+    }
 }
 
 /// Represents the state of the game, including:
 /// - `buildings`: A list of all buildings on the board.
 /// - `roads`: A list of all roads on the board.
 /// - `robber`: The current position of the robber.
+#[derive(Clone)]
 pub struct State {
     pub buildings: Vec<Building>,
     pub roads: Vec<Road>,
@@ -361,6 +378,7 @@ pub struct State {
 }
 
 /// Represents the overall game state, including the board and the state of all players.
+#[derive(Clone)]
 pub struct Game {
     pub board: Board,
     pub state: State,
