@@ -1,148 +1,125 @@
-# Settlers of Catan AI WebAssembly
+# Settlers of Catan AI
 
-## Overview
-This project implements an AI bot for the board game **Settlers of Catan** using Rust and WebAssembly (Wasm). The AI bot evaluates the current game state and returns the optimal move based on the rules of the game. It is designed to run on the edge, enabling low-latency decision-making for multiplayer games hosted on distributed platforms.
+A Settlers of Catan AI engine written in Rust, deployable as a WebAssembly service on [Fastly Compute](https://www.fastly.com/products/edge-cloud-platforms/compute).
 
-## Features
-- **AI-Powered Decision Making**: Uses algorithms like Minimax (planned) to compute the best possible move for the AI.
-- **WebAssembly Support**: Highly portable Wasm module for execution in edge environments (e.g., Cloudflare Workers, Fastly Compute@Edge).
-- **Game State Serialization**: Encodes and decodes the game state for seamless communication with the Wasm module.
-- **Edge-Optimized Execution**: Designed to reduce latency and enhance scalability by running AI logic close to users.
+## How it works
 
-## Project Structure
+The service accepts a POST request whose body is an ASCII representation of the current game state, runs a **paranoid minimax** search, and returns the best move as a plain-text string.
+
 ```
-.
-├── src
-│   ├── main.rs           # Main Rust source file
-│   ├── lib.rs            # Shared logic for board state and AI computation
-├── Cargo.toml            # Rust dependencies and configuration
-├── README.md             # Project documentation
-├── tests                 # Unit and integration tests
-├── wasm                  # Compiled WebAssembly binaries
-└── examples              # Example game states and AI usage
+POST /          body: <game state>
+200 OK          body: build_settlement 19
+                   or build_city 29
+                   or build_road 38 39
+                   or pass
 ```
 
-## Requirements
-- Rust programming language (1.70 or newer)
-- `wasm32-unknown-unknown` target for WebAssembly compilation
-- Edge computing platform with WebAssembly support (e.g., Cloudflare Workers)
+## Algorithm
 
-## Installation
+**Paranoid minimax** with a depth-3 search tree (one full round of White → Red → Blue):
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/your-username/settlers-of-catan-ai.git
-   cd settlers-of-catan-ai
-   ```
+- **Maximiser** (the requesting player): picks the move with the highest heuristic score.
+- **Minimisers** (all opponents): assumed to pick moves that minimise the maximiser's score — the "paranoid" worst-case assumption for multi-player games.
 
-2. **Install Rust**:
-   Follow the instructions on [Rust's official website](https://www.rust-lang.org/tools/install) to install Rust.
+**Heuristic score** for a player:
 
-3. **Add Wasm Target**:
-   ```bash
-   rustup target add wasm32-unknown-unknown
-   ```
+| Component | Formula |
+|-----------|---------|
+| Victory points | VP × 100 |
+| Road progress | road_length × 3 (capped at 200 when ≥ 5, the longest-road bonus) |
+| Resource income | Σ dice_probability(tile) × building_multiplier (Settlement=1×, City=2×) |
 
-4. **Build the Project**:
-   ```bash
-   cargo build --target wasm32-unknown-unknown --release
-   ```
+**Move set** per turn: `BuildRoad`, `BuildSettlement`, `BuildCity`, `Pass`.
 
-5. **Run Tests**:
-   ```bash
-   cargo test
-   ```
+## Game state format
 
-## Usage
+The state is encoded as a fixed-width ASCII board plus three resource lines.
 
-### Input Format
-The AI module expects the game state as a JSON string. Example:
-```json
-{
-  "tiles": [
-    {"dice": 10, "kind": "ore"},
-    {"dice": 2, "kind": "wool"}
-  ],
-  "buildings": [
-    {"id": 10, "kind": "Settlement", "player": "red"},
-    {"id": 13, "kind": "City", "player": "blue"}
-  ],
-  "roads": [
-    {"id": 13, "player": "red"},
-    {"id": 15, "player": "blue"}
-  ],
-  "robber": 7
-}
+```
+          oo . oo . oo . oo . oo W oo W oo
+          .   10O   .   02W   .   09L   W
+     oo . oo . oo . RS R oo . oo B BS W oo . oo
+     .   12G   .   06B   .   04W   W   10B   .
+oo . oo . oo W WS . oo . oo . oo . oo W oo . oo . oo
+.   09G!  .   11L   .   00N   .   03L   W   08O   .
+oo . oo . RS R oo . oo . oo . oo . oo . WS . oo . oo
+     .   08L   .   03O   .   04G   B   05W   .
+     oo . oo . RS B oo . oo . oo . RS . oo . oo
+          .   05B   .   06G   .   11W   .
+          oo . oo . oo . oo . oo . oo . oo
+W 1 2 3 4 5
+R 6 7 8 9 10
+B 11 12 13 14 15
 ```
 
-### Output Format
-The AI module returns the next move as a JSON string. Example:
-```json
-{
-  "action": "build_settlement",
-  "position": 10
-}
+### Tiles (`TTTT`)
+Four characters: two-digit dice roll + resource letter + optional robber `!`.
+
+| Letter | Resource |
+|--------|----------|
+| `G` | Grain |
+| `W` | Wool |
+| `B` | Brick |
+| `L` | Lumber |
+| `O` | Ore |
+| `N` | Nothing (desert) |
+
+### Intersections (`BB`)
+Two characters: player letter (`R`/`B`/`W`) + building type (`S`=Settlement, `C`=City), or `oo` for empty.
+
+### Roads (`*`)
+One character: player letter (`R`/`B`/`W`) or `.` for empty.
+
+### Resource lines
+One line per player: `<player> <grain> <wool> <brick> <lumber> <ore>`
+
+## Module map
+
+| Module | File | Purpose |
+|--------|------|---------|
+| `main` | `src/main.rs` | Fastly Compute entry point (HTTP handler) |
+| `game::board` | `src/game/board.rs` | Core types: `Player`, `Tile`, `Building`, `Road`, `Board`, `State`, `Game` |
+| `game::encoding` | `src/game/encoding.rs` | ASCII ↔ `Game` serialization (`TryFrom<String>` / `From<Game>`) |
+| `game::resources` | `src/game/resources.rs` | `ResourceCount`, costs, `possible_buys` |
+| `moves::possible_moves` | `src/moves/possible_moves.rs` | `possible_road_paths`, `possible_building_intersections`, `longest_road` |
+| `moves::maximin` | `src/moves/maximin.rs` | Paranoid minimax + `compute_best_move` |
+
+## Build & run
+
+The binary targets Fastly Compute (WASM). Use `fastly` CLI for local testing:
+
+```bash
+# Install Fastly CLI: https://developer.fastly.com/reference/cli/
+fastly compute serve --verbose
 ```
 
-### Example Usage
-```rust
-use serde_json::json;
+Send a game state:
 
-let game_state = json!({
-  "tiles": [...],
-  "buildings": [...],
-  "roads": [...],
-  "robber": 7
-});
-
-let next_move = ai_next_move(&game_state.to_string());
-println!("AI suggests move: {}", next_move);
+```bash
+curl -X POST http://127.0.0.1:7676 --data-binary @game_state.txt
 ```
 
-## Deployment
+## Tests
 
-### Cloudflare Workers Example
-1. **Upload Wasm Module**:
-   Deploy the compiled `.wasm` file to Cloudflare.
+```bash
+# All unit tests (runs on native target)
+cargo test --lib
 
-2. **Create Worker Script**:
-   ```javascript
-   import wasm from './ai_module.wasm';
+# Lint
+cargo clippy --lib -- -D warnings
 
-   async function handleRequest(request) {
-       const gameState = await request.json();
-       const nextMove = wasm.ai_next_move(JSON.stringify(gameState));
-       return new Response(nextMove, { headers: { 'Content-Type': 'application/json' } });
-   }
+# Format check
+cargo fmt --all -- --check
+```
 
-   addEventListener('fetch', event => {
-       event.respondWith(handleRequest(event.request));
-   });
-   ```
+## Catan build costs (for reference)
 
-3. **Test the Worker**:
-   ```bash
-   curl -X POST https://your-worker-url.workers.dev -d '{...}'
-   ```
-
-### Fastly Compute 
-
-1. Fastly Compute 
-   ```bash
-    fastly compute serve --verbose
-   ```
-
-## Roadmap
-- Implement Minimax or Monte Carlo Tree Search for AI decision-making.
-- Add support for multiplayer scenarios.
-- Optimize serialization/deserialization with binary formats.
-- Extend functionality for full Settlers of Catan rules.
-
-## Contributing
-Contributions are welcome! Please fork the repository and submit a pull request.
+| Item | Cost |
+|------|------|
+| Road | 1 Brick + 1 Lumber |
+| Settlement | 1 Grain + 1 Wool + 1 Brick + 1 Lumber |
+| City (upgrade) | 2 Grain + 3 Ore |
 
 ## License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-## Acknowledgments
-Special thanks to the developers of Settlers of Catan for the inspiration and to the Rust and WebAssembly communities for their excellent tools and support.
+MIT — see [LICENSE](LICENSE).
