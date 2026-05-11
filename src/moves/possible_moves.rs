@@ -125,7 +125,11 @@ impl Game {
         // Any intersection connected to the player's road network is a valid origin.
         // (Leaf-only detection was wrong for cyclic road networks: a ring has no
         // degree-1 nodes, so the old code returned an empty set.)
-        let player_intersections: HashSet<usize> = graph.keys().copied().collect();
+        let mut player_intersections: HashSet<usize> = graph.keys().copied().collect();
+        // Roads can also be anchored at the player's own settlements / cities.
+        for b in self.state.buildings.iter().filter(|b| b.player == player) {
+            player_intersections.insert(b.intersection_id.0);
+        }
         let occupied_path_ids: HashSet<usize> = self.state.roads.iter()
             .map(|r| r.id.0)
             .collect();
@@ -354,7 +358,7 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
             state: crate::game::State {
                 buildings,
                 roads,
-                robber: RobberId(0),
+                robber: RobberId(9), // desert tile
                 resources: PlayerResourceCount { red: zero.clone(), blue: zero.clone(), white: zero },
             },
         }
@@ -405,5 +409,22 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
         }
         // Only the 4 intersections touched by paths of intersection 10.
         assert_eq!(blocked.len(), 4);
+    }
+
+    #[test]
+    fn test_possible_road_paths_from_settlement_no_existing_road() {
+        // Intersection 38 sits on paths 49 (28–38) and 54 (38–39).
+        // A settlement there should anchor roads even without any existing roads.
+        let buildings = vec![Building {
+            intersection_id: IntersectionId(38),
+            kind: crate::game::BuildingKind::Settlement,
+            player: Player::White,
+        }];
+        let game = make_game(buildings, vec![]);
+        let paths = game.possible_road_paths(Player::White);
+        assert!(!paths.is_empty(), "settlement should enable road placement");
+        assert!(paths.contains(&Path(IntersectionId(28), IntersectionId(38))), "path 49 (28–38) should be reachable");
+        assert!(paths.contains(&Path(IntersectionId(38), IntersectionId(39))), "path 54 (38–39) should be reachable");
+        assert_eq!(paths.len(), 2, "only 2 paths touch intersection 38");
     }
 }

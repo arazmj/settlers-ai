@@ -51,6 +51,17 @@ impl Game {
         }
     }
 
+    /// True if `player` holds the Longest Road card: their road is ≥5 and strictly
+    /// longer than every opponent's road.
+    fn has_longest_road(&self, player: Player) -> bool {
+        let own = self.longest_road(player);
+        own >= 5
+            && [Player::Red, Player::Blue, Player::White]
+                .iter()
+                .filter(|&&p| p != player)
+                .all(|&p| self.longest_road(p) < own)
+    }
+
     fn victory_points(&self, player: Player) -> u32 {
         let building_vp: u32 = self.state.buildings.iter()
             .filter(|b| b.player == player)
@@ -59,13 +70,14 @@ impl Game {
                 BuildingKind::City => 2,
             })
             .sum();
-        let road_bonus = if self.longest_road(player) >= 5 { 2 } else { 0 };
+        let road_bonus = if self.has_longest_road(player) { 2 } else { 0 };
         building_vp + road_bonus
     }
 
     /// Expected resource units per turn: sum of dice probabilities of tiles adjacent to
-    /// player buildings, doubled for cities.
+    /// player buildings, doubled for cities.  Tiles blocked by the robber produce nothing.
     fn resource_income(&self, player: Player) -> u32 {
+        let robber_tile = self.state.robber.0;
         self.state.buildings.iter()
             .filter(|b| b.player == player)
             .map(|b| {
@@ -73,7 +85,7 @@ impl Game {
                     BuildingKind::Settlement => 1,
                     BuildingKind::City => 2,
                 };
-                self.board.intersection_dice_income(b.intersection_id.0) * mult
+                self.board.intersection_dice_income(b.intersection_id.0, robber_tile) * mult
             })
             .sum()
     }
@@ -146,24 +158,42 @@ impl Game {
         g
     }
 
-    /// Paranoid minimax: `maximizing_player` maximises their score; every other player
-    /// acts as a minimiser (assumes the worst case for us).
-    fn minimax(&self, depth: u32, player: Player, maximizing_player: Player) -> i32 {
+    /// Paranoid minimax with alpha-beta pruning.
+    /// `maximizing_player` maximises their score; every other player minimises it.
+    /// `alpha` = lower bound for the maximiser; `beta` = upper bound for the minimiser.
+    fn minimax(
+        &self,
+        depth: u32,
+        player: Player,
+        maximizing_player: Player,
+        mut alpha: i32,
+        mut beta: i32,
+    ) -> i32 {
         if depth == 0 {
             return self.score(maximizing_player);
         }
         let moves = self.generate_moves(player);
         let next  = next_player(player);
         if player == maximizing_player {
-            moves.iter()
-                .map(|mv| self.apply_move(mv, player).minimax(depth - 1, next, maximizing_player))
-                .max()
-                .unwrap_or(i32::MIN)
+            let mut value = i32::MIN;
+            for mv in &moves {
+                let child = self.apply_move(mv, player)
+                    .minimax(depth - 1, next, maximizing_player, alpha, beta);
+                value = value.max(child);
+                alpha = alpha.max(value);
+                if value >= beta { break; }
+            }
+            value
         } else {
-            moves.iter()
-                .map(|mv| self.apply_move(mv, player).minimax(depth - 1, next, maximizing_player))
-                .min()
-                .unwrap_or(i32::MAX)
+            let mut value = i32::MAX;
+            for mv in &moves {
+                let child = self.apply_move(mv, player)
+                    .minimax(depth - 1, next, maximizing_player, alpha, beta);
+                value = value.min(child);
+                beta = beta.min(value);
+                if value <= alpha { break; }
+            }
+            value
         }
     }
 
@@ -173,7 +203,8 @@ impl Game {
         let next  = next_player(player);
         moves.iter()
             .map(|mv| {
-                let score = self.apply_move(mv, player).minimax(DEPTH - 1, next, player);
+                let score = self.apply_move(mv, player)
+                    .minimax(DEPTH - 1, next, player, i32::MIN, i32::MAX);
                 (score, mv)
             })
             .max_by_key(|(score, _)| *score)
@@ -302,7 +333,9 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
             state: State {
                 buildings,
                 roads,
-                robber: RobberId(0),
+                // Tile 9 is the desert (dice=0, Nothing) — robber starts there by convention
+                // so it does not suppress income on any productive tile.
+                robber: RobberId(9),
                 resources: PlayerResourceCount { red: zero_rc(), blue: zero_rc(), white },
             },
         }
@@ -477,5 +510,66 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
         assert_eq!(GameMove::BuildRoad(Path(IntersectionId(1), IntersectionId(2))).to_string(), "build_road 1 2");
         assert_eq!(GameMove::BuildSettlement(IntersectionId(5)).to_string(), "build_settlement 5");
         assert_eq!(GameMove::BuildCity(IntersectionId(7)).to_string(), "build_city 7");
+    }
+
+    // ── robber blocking ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_resource_income_robber_blocks_tile() {
+        // Intersection 10 touches tiles 0 (dice=10→3), 1 (dice=2→1), 4 (dice=6→5).
+        // With robber on tile 0, only tiles 1 and 4 contribute: 1+5=6.
+        let b = vec![Building {
+            intersection_id: IntersectionId(10),
+            kind: BuildingKind::Settlement,
+            player: Player::White,
+        }];
+        let mut game = make_game(b, vec![], zero_rc());
+        game.state.robber = RobberId(0);
+        assert_eq!(game.resource_income(Player::White), 6);
+    }
+
+    #[test]
+    fn test_resource_income_robber_on_unrelated_tile_no_effect() {
+        // Robber on tile 18 (not adjacent to intersection 10) → income still 9.
+        let b = vec![Building {
+            intersection_id: IntersectionId(10),
+            kind: BuildingKind::Settlement,
+            player: Player::White,
+        }];
+        let mut game = make_game(b, vec![], zero_rc());
+        game.state.robber = RobberId(18);
+        assert_eq!(game.resource_income(Player::White), 9);
+    }
+
+    // ── longest road comparison ───────────────────────────────────────────────
+
+    #[test]
+    fn test_victory_points_no_road_bonus_when_tied() {
+        // White and Red each have a 5-road chain → tie, neither gets the +2 bonus.
+        let white_roads: Vec<Road> = (54..=58)
+            .map(|id| Road { id: PathId(id), player: Player::White })
+            .collect();
+        let red_roads: Vec<Road> = (39..=43)
+            .map(|id| Road { id: PathId(id), player: Player::Red })
+            .collect();
+        let all_roads: Vec<Road> = white_roads.into_iter().chain(red_roads).collect();
+        let game = make_game(vec![], all_roads, zero_rc());
+        assert_eq!(game.victory_points(Player::White), 0);
+        assert_eq!(game.victory_points(Player::Red),   0);
+    }
+
+    #[test]
+    fn test_victory_points_road_bonus_when_strictly_longer() {
+        // White has 6 roads, Red has 5 → White gets the +2 bonus.
+        let white_roads: Vec<Road> = (54..=59)
+            .map(|id| Road { id: PathId(id), player: Player::White })
+            .collect();
+        let red_roads: Vec<Road> = (39..=43)
+            .map(|id| Road { id: PathId(id), player: Player::Red })
+            .collect();
+        let all_roads: Vec<Road> = white_roads.into_iter().chain(red_roads).collect();
+        let game = make_game(vec![], all_roads, zero_rc());
+        assert_eq!(game.victory_points(Player::White), 2);
+        assert_eq!(game.victory_points(Player::Red),   0);
     }
 }

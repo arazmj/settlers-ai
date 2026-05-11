@@ -349,10 +349,12 @@ impl Board {
         }
     }
 
-    /// Returns the sum of dice probabilities for all tiles adjacent to `intersection_id`.
+    /// Returns the sum of dice probabilities for all tiles adjacent to `intersection_id`,
+    /// excluding the tile occupied by the robber (which produces nothing while blocked).
     /// Settlement produces 1× this value per turn; a City produces 2×.
-    pub fn intersection_dice_income(&self, intersection_id: usize) -> u32 {
+    pub fn intersection_dice_income(&self, intersection_id: usize, robber_tile: usize) -> u32 {
         self.intersections[intersection_id].tiles.iter()
+            .filter(|tile_id| tile_id.0 != robber_tile)
             .map(|tile_id| match self.tiles[tile_id.0].dice {
                 2 | 12 => 1,
                 3 | 11 => 2,

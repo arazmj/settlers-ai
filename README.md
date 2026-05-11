@@ -33,10 +33,11 @@ Content-Type: text/plain
 
 ## Algorithm
 
-**Paranoid minimax**, depth 3 (one full White → Red → Blue round):
+**Paranoid minimax with alpha-beta pruning**, depth 3 (one full White → Red → Blue round):
 
 - **Maximiser** (the requesting player): picks the move with the highest heuristic score.
 - **Minimisers** (all opponents): assumed to minimise the maximiser's score — the standard worst-case assumption for multi-player games.
+- **Alpha-beta pruning** eliminates branches that cannot affect the final decision, significantly reducing nodes evaluated without changing the result.
 
 **Heuristic score:**
 
@@ -44,9 +45,11 @@ Content-Type: text/plain
 |-----------|--------|
 | Victory points | VP × 100 |
 | Road progress toward longest-road bonus | road\_len × 3; capped at 200 once ≥ 5 |
-| Resource income | Σ dice\_prob(tile) × multiplier (Settlement = 1×, City = 2×) |
+| Resource income | Σ dice\_prob(tile) × multiplier (Settlement = 1×, City = 2×); robber-blocked tiles contribute 0 |
 
 Dice probability is the number of ways to roll the tile's number on 2d6 (e.g. 6 or 8 → 5, 7 → 0 because of the robber).
+
+**Longest Road bonus** (+2 VP) is awarded only when a player has ≥ 5 roads and is strictly longer than every opponent, matching the standard Catan rule.
 
 **Build costs:**
 
@@ -139,7 +142,7 @@ cargo clippy --lib -- -D warnings
 cargo fmt --all -- --check
 ```
 
-The test suite currently has **50 tests** covering encoding round-trips, resource arithmetic, longest-road calculation, possible-move generation, minimax scoring, move application, and move selection.
+The test suite currently has **55 tests** covering encoding round-trips, resource arithmetic, longest-road calculation, possible-move generation, minimax scoring, move application, move selection, robber blocking, and longest-road bonus comparison.
 
 ## License
 
