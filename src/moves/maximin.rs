@@ -272,4 +272,210 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
         let mv = game.compute_best_move(Player::White);
         assert!(mv.starts_with("build_city"), "expected build_city, got: {}", mv);
     }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    use crate::game::{Board, RobberId, Tile, TileKind};
+
+    fn zero_rc() -> ResourceCount {
+        ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 }
+    }
+
+    /// Builds a Game with the standard test tile set, the given pieces, and White's resources.
+    /// Red and Blue always start at zero resources.
+    fn make_game(buildings: Vec<Building>, roads: Vec<Road>, white: ResourceCount) -> Game {
+        let tiles = [
+            Tile { dice: 10, kind: TileKind::Ore },    Tile { dice: 2,  kind: TileKind::Wool },
+            Tile { dice: 9,  kind: TileKind::Lumber }, Tile { dice: 12, kind: TileKind::Grain },
+            Tile { dice: 6,  kind: TileKind::Brick },  Tile { dice: 4,  kind: TileKind::Wool },
+            Tile { dice: 10, kind: TileKind::Brick },  Tile { dice: 9,  kind: TileKind::Grain },
+            Tile { dice: 11, kind: TileKind::Lumber }, Tile { dice: 0,  kind: TileKind::Nothing },
+            Tile { dice: 3,  kind: TileKind::Lumber }, Tile { dice: 8,  kind: TileKind::Ore },
+            Tile { dice: 8,  kind: TileKind::Lumber }, Tile { dice: 3,  kind: TileKind::Ore },
+            Tile { dice: 4,  kind: TileKind::Grain },  Tile { dice: 5,  kind: TileKind::Wool },
+            Tile { dice: 5,  kind: TileKind::Brick },  Tile { dice: 6,  kind: TileKind::Grain },
+            Tile { dice: 11, kind: TileKind::Wool },
+        ];
+        use crate::game::resources::PlayerResourceCount;
+        Game {
+            board: Board::new(tiles),
+            state: State {
+                buildings,
+                roads,
+                robber: RobberId(0),
+                resources: PlayerResourceCount { red: zero_rc(), blue: zero_rc(), white },
+            },
+        }
+    }
+
+    // ── victory_points ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_victory_points_no_buildings() {
+        let game = make_game(vec![], vec![], zero_rc());
+        assert_eq!(game.victory_points(Player::White), 0);
+    }
+
+    #[test]
+    fn test_victory_points_one_settlement() {
+        let b = vec![Building { intersection_id: IntersectionId(0), kind: BuildingKind::Settlement, player: Player::White }];
+        assert_eq!(make_game(b, vec![], zero_rc()).victory_points(Player::White), 1);
+    }
+
+    #[test]
+    fn test_victory_points_city_worth_two() {
+        let b = vec![Building { intersection_id: IntersectionId(0), kind: BuildingKind::City, player: Player::White }];
+        assert_eq!(make_game(b, vec![], zero_rc()).victory_points(Player::White), 2);
+    }
+
+    #[test]
+    fn test_victory_points_mixed_buildings() {
+        // 1 settlement + 1 city = 3 VP.
+        let b = vec![
+            Building { intersection_id: IntersectionId(0), kind: BuildingKind::Settlement, player: Player::White },
+            Building { intersection_id: IntersectionId(3), kind: BuildingKind::City,       player: Player::White },
+        ];
+        assert_eq!(make_game(b, vec![], zero_rc()).victory_points(Player::White), 3);
+    }
+
+    #[test]
+    fn test_victory_points_longest_road_bonus() {
+        // Paths 54–58 form a 5-road chain (38→39→40→41→42→43) → +2 VP bonus.
+        let roads: Vec<Road> = (54..=58)
+            .map(|id| Road { id: PathId(id), player: Player::White })
+            .collect();
+        let game = make_game(vec![], roads, zero_rc());
+        assert_eq!(game.longest_road(Player::White), 5);
+        assert_eq!(game.victory_points(Player::White), 2);
+    }
+
+    #[test]
+    fn test_victory_points_only_own_buildings_counted() {
+        // Red buildings must not inflate White's VP count.
+        let b = vec![Building { intersection_id: IntersectionId(0), kind: BuildingKind::City, player: Player::Red }];
+        assert_eq!(make_game(b, vec![], zero_rc()).victory_points(Player::White), 0);
+    }
+
+    // ── resource_income ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_resource_income_no_buildings() {
+        assert_eq!(make_game(vec![], vec![], zero_rc()).resource_income(Player::White), 0);
+    }
+
+    #[test]
+    fn test_resource_income_settlement() {
+        // Intersection 10 is adjacent to tiles 0 (dice=10→3), 1 (dice=2→1), 4 (dice=6→5).
+        // Expected income = 3 + 1 + 5 = 9.
+        let b = vec![Building { intersection_id: IntersectionId(10), kind: BuildingKind::Settlement, player: Player::White }];
+        assert_eq!(make_game(b, vec![], zero_rc()).resource_income(Player::White), 9);
+    }
+
+    #[test]
+    fn test_resource_income_city_doubles() {
+        // Same intersection but City: 9 × 2 = 18.
+        let b = vec![Building { intersection_id: IntersectionId(10), kind: BuildingKind::City, player: Player::White }];
+        assert_eq!(make_game(b, vec![], zero_rc()).resource_income(Player::White), 18);
+    }
+
+    // ── apply_move ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_apply_move_pass_leaves_state_unchanged() {
+        let game = make_game(vec![], vec![], zero_rc());
+        let after = game.apply_move(&GameMove::Pass, Player::White);
+        assert_eq!(after.state.roads.len(), 0);
+        assert_eq!(after.state.buildings.len(), 0);
+    }
+
+    #[test]
+    fn test_apply_move_road_adds_road_and_deducts_resources() {
+        // White has roads at 54 (38–39) and 55 (39–40); path 56 (40–41) is free.
+        let roads = vec![
+            Road { id: PathId(54), player: Player::White },
+            Road { id: PathId(55), player: Player::White },
+        ];
+        let white = ResourceCount { grain: 0, wool: 0, brick: 1, lumber: 1, ore: 0 };
+        let game  = make_game(vec![], roads, white);
+        let after = game.apply_move(&GameMove::BuildRoad(Path(IntersectionId(40), IntersectionId(41))), Player::White);
+        assert_eq!(after.state.roads.len(), 3);
+        assert_eq!(after.state.resources.white.brick,  0);
+        assert_eq!(after.state.resources.white.lumber, 0);
+    }
+
+    #[test]
+    fn test_apply_move_settlement_adds_building_and_deducts_resources() {
+        let roads = vec![
+            Road { id: PathId(54), player: Player::White },
+            Road { id: PathId(55), player: Player::White },
+        ];
+        let white = ResourceCount { grain: 1, wool: 1, brick: 1, lumber: 1, ore: 0 };
+        let game  = make_game(vec![], roads, white);
+        let after = game.apply_move(&GameMove::BuildSettlement(IntersectionId(38)), Player::White);
+        assert_eq!(after.state.buildings.len(), 1);
+        assert!(matches!(after.state.buildings[0].kind, BuildingKind::Settlement));
+        assert_eq!(after.state.resources.white.grain,  0);
+        assert_eq!(after.state.resources.white.wool,   0);
+        assert_eq!(after.state.resources.white.brick,  0);
+        assert_eq!(after.state.resources.white.lumber, 0);
+    }
+
+    #[test]
+    fn test_apply_move_city_upgrades_kind_and_deducts_resources() {
+        let b = vec![Building { intersection_id: IntersectionId(10), kind: BuildingKind::Settlement, player: Player::White }];
+        let white = ResourceCount { grain: 2, wool: 0, brick: 0, lumber: 0, ore: 3 };
+        let game  = make_game(b, vec![], white);
+        let after = game.apply_move(&GameMove::BuildCity(IntersectionId(10)), Player::White);
+        assert!(matches!(after.state.buildings[0].kind, BuildingKind::City));
+        assert_eq!(after.state.resources.white.grain, 0);
+        assert_eq!(after.state.resources.white.ore,   0);
+    }
+
+    // ── generate_moves ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_generate_moves_only_pass_when_no_resources() {
+        let game = make_game(vec![], vec![], zero_rc());
+        let moves = game.generate_moves(Player::White);
+        assert_eq!(moves.len(), 1);
+        assert!(matches!(moves[0], GameMove::Pass));
+    }
+
+    #[test]
+    fn test_generate_moves_includes_build_road_when_affordable() {
+        let roads = vec![Road { id: PathId(54), player: Player::White }];
+        let white = ResourceCount { grain: 0, wool: 0, brick: 1, lumber: 1, ore: 0 };
+        let game  = make_game(vec![], roads, white);
+        let moves = game.generate_moves(Player::White);
+        assert!(moves.iter().any(|m| matches!(m, GameMove::BuildRoad(_))));
+    }
+
+    #[test]
+    fn test_generate_moves_includes_build_city_when_settlement_exists() {
+        let b = vec![Building { intersection_id: IntersectionId(0), kind: BuildingKind::Settlement, player: Player::White }];
+        let white = ResourceCount { grain: 2, wool: 0, brick: 0, lumber: 0, ore: 3 };
+        let game  = make_game(b, vec![], white);
+        let moves = game.generate_moves(Player::White);
+        assert!(moves.iter().any(|m| matches!(m, GameMove::BuildCity(_))));
+    }
+
+    #[test]
+    fn test_generate_moves_no_city_when_only_city_exists() {
+        // An existing City cannot be upgraded again.
+        let b = vec![Building { intersection_id: IntersectionId(0), kind: BuildingKind::City, player: Player::White }];
+        let white = ResourceCount { grain: 2, wool: 0, brick: 0, lumber: 0, ore: 3 };
+        let game  = make_game(b, vec![], white);
+        let moves = game.generate_moves(Player::White);
+        assert!(!moves.iter().any(|m| matches!(m, GameMove::BuildCity(_))));
+    }
+
+    // ── Display ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_game_move_display() {
+        assert_eq!(GameMove::Pass.to_string(), "pass");
+        assert_eq!(GameMove::BuildRoad(Path(IntersectionId(1), IntersectionId(2))).to_string(), "build_road 1 2");
+        assert_eq!(GameMove::BuildSettlement(IntersectionId(5)).to_string(), "build_settlement 5");
+        assert_eq!(GameMove::BuildCity(IntersectionId(7)).to_string(), "build_city 7");
+    }
 }

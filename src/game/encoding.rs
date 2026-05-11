@@ -631,4 +631,79 @@ mod tests {
 
         assert_eq!(string1, string2);
     }
+
+    #[test]
+    fn test_city_round_trip() {
+        let board = get_board();
+        let buildings = vec![
+            Building { intersection_id: IntersectionId(10), kind: BuildingKind::City,       player: Player::Red },
+            Building { intersection_id: IntersectionId(19), kind: BuildingKind::City,       player: Player::Blue },
+            Building { intersection_id: IntersectionId(35), kind: BuildingKind::Settlement, player: Player::White },
+        ];
+        let state = State {
+            buildings,
+            roads: vec![],
+            robber: RobberId(3),
+            resources: PlayerResourceCount {
+                red:   ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+                blue:  ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+                white: ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+            },
+        };
+        let s1 = String::from(Game { board, state });
+        let game2: Game = s1.clone().try_into().expect("round-trip failed");
+        let s2 = String::from(game2);
+        // City 'C' must survive a full round-trip
+        assert!(s1.contains("RC"), "expected Red City in serialized board");
+        assert!(s1.contains("BC"), "expected Blue City in serialized board");
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_robber_position_round_trip() {
+        let board = get_board();
+        // Place robber on tile 14 (not the default 0) and verify it survives encoding.
+        let state = State {
+            buildings: vec![],
+            roads: vec![],
+            robber: RobberId(14),
+            resources: PlayerResourceCount {
+                red:   ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+                blue:  ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+                white: ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 },
+            },
+        };
+        let s1 = String::from(Game { board, state });
+        let game2: Game = s1.clone().try_into().unwrap();
+        assert_eq!(game2.state.robber, RobberId(14));
+        let s2 = String::from(game2);
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_player_try_from_char() {
+        assert_eq!(Player::try_from('R').unwrap(), Player::Red);
+        assert_eq!(Player::try_from('B').unwrap(), Player::Blue);
+        assert_eq!(Player::try_from('W').unwrap(), Player::White);
+        assert!(Player::try_from('X').is_err());
+        assert!(Player::try_from('r').is_err());
+    }
+
+    #[test]
+    fn test_tile_kind_try_from_char() {
+        assert!(matches!(TileKind::try_from('G').unwrap(), TileKind::Grain));
+        assert!(matches!(TileKind::try_from('W').unwrap(), TileKind::Wool));
+        assert!(matches!(TileKind::try_from('B').unwrap(), TileKind::Brick));
+        assert!(matches!(TileKind::try_from('L').unwrap(), TileKind::Lumber));
+        assert!(matches!(TileKind::try_from('O').unwrap(), TileKind::Ore));
+        assert!(matches!(TileKind::try_from('N').unwrap(), TileKind::Nothing));
+        assert!(TileKind::try_from('X').is_err());
+    }
+
+    #[test]
+    fn test_building_kind_try_from_char() {
+        assert!(matches!(BuildingKind::try_from('S').unwrap(), BuildingKind::Settlement));
+        assert!(matches!(BuildingKind::try_from('C').unwrap(), BuildingKind::City));
+        assert!(BuildingKind::try_from('X').is_err());
+    }
 }

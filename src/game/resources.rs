@@ -244,5 +244,54 @@ B  11 12 13 14 15"
 
         assert_eq!(a, buys);
     }
+
+    #[test]
+    fn test_resource_count_add() {
+        let a = ResourceCount { grain: 1, wool: 2, brick: 3, lumber: 4, ore: 5 };
+        let b = ResourceCount { grain: 5, wool: 4, brick: 3, lumber: 2, ore: 1 };
+        assert_eq!(a + b, ResourceCount { grain: 6, wool: 6, brick: 6, lumber: 6, ore: 6 });
+    }
+
+    #[test]
+    fn test_resource_count_sub() {
+        let a = ResourceCount { grain: 3, wool: 3, brick: 3, lumber: 3, ore: 3 };
+        let b = ResourceCount { grain: 1, wool: 1, brick: 1, lumber: 1, ore: 1 };
+        assert_eq!(a - b, ResourceCount { grain: 2, wool: 2, brick: 2, lumber: 2, ore: 2 });
+    }
+
+    #[test]
+    fn test_is_positive_all_zero() {
+        // Zero counts are non-negative, so is_positive should return true.
+        let r = ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 };
+        assert!(r.is_positive());
+    }
+
+    #[test]
+    fn test_is_not_positive_when_any_negative() {
+        let r = ResourceCount { grain: 1, wool: 1, brick: -1, lumber: 1, ore: 1 };
+        assert!(!r.is_positive());
+    }
+
+    #[test]
+    fn test_possible_buys_empty_when_no_resources() {
+        let r = ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 };
+        assert!(r.possible_buys().is_empty());
+    }
+
+    #[test]
+    fn test_possible_buys_road_only() {
+        // brick=1 + lumber=1 → exactly one road affordable, nothing else.
+        let r = ResourceCount { grain: 0, wool: 0, brick: 1, lumber: 1, ore: 0 };
+        let buys = r.possible_buys();
+        assert_eq!(buys, vec![Buys::Road].into_iter().collect::<HashSet<_>>());
+    }
+
+    #[test]
+    fn test_possible_buys_includes_city_when_affordable() {
+        // 2 grain + 3 ore → City must be in the set.
+        let r = ResourceCount { grain: 2, wool: 0, brick: 0, lumber: 0, ore: 3 };
+        let buys = r.possible_buys();
+        assert!(buys.contains(&Buys::City));
+    }
 }
 

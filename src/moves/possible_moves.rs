@@ -330,4 +330,80 @@ B 0 0 0 0 0".to_string().try_into().unwrap();
         let s: HashSet<IntersectionId> = vec![IntersectionId(46), IntersectionId(6), IntersectionId(4), IntersectionId(5)].into_iter().collect();
         assert_eq!(game.possible_building_intersections(Player::White), s);
     }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    fn make_game(buildings: Vec<Building>, roads: Vec<crate::game::Road>) -> Game {
+        use crate::game::{Board, RobberId, Tile, TileKind};
+        use crate::game::resources::{PlayerResourceCount, ResourceCount};
+        let zero = ResourceCount { grain: 0, wool: 0, brick: 0, lumber: 0, ore: 0 };
+        let tiles = [
+            Tile { dice: 10, kind: TileKind::Ore },    Tile { dice: 2,  kind: TileKind::Wool },
+            Tile { dice: 9,  kind: TileKind::Lumber }, Tile { dice: 12, kind: TileKind::Grain },
+            Tile { dice: 6,  kind: TileKind::Brick },  Tile { dice: 4,  kind: TileKind::Wool },
+            Tile { dice: 10, kind: TileKind::Brick },  Tile { dice: 9,  kind: TileKind::Grain },
+            Tile { dice: 11, kind: TileKind::Lumber }, Tile { dice: 0,  kind: TileKind::Nothing },
+            Tile { dice: 3,  kind: TileKind::Lumber }, Tile { dice: 8,  kind: TileKind::Ore },
+            Tile { dice: 8,  kind: TileKind::Lumber }, Tile { dice: 3,  kind: TileKind::Ore },
+            Tile { dice: 4,  kind: TileKind::Grain },  Tile { dice: 5,  kind: TileKind::Wool },
+            Tile { dice: 5,  kind: TileKind::Brick },  Tile { dice: 6,  kind: TileKind::Grain },
+            Tile { dice: 11, kind: TileKind::Wool },
+        ];
+        Game {
+            board: Board::new(tiles),
+            state: crate::game::State {
+                buildings,
+                roads,
+                robber: RobberId(0),
+                resources: PlayerResourceCount { red: zero.clone(), blue: zero.clone(), white: zero },
+            },
+        }
+    }
+
+    // ── new tests ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_longest_road_no_roads() {
+        let game = make_game(vec![], vec![]);
+        assert_eq!(game.longest_road(Player::White), 0);
+    }
+
+    #[test]
+    fn test_longest_road_single_road() {
+        // Path 54 connects intersections 38–39.
+        let roads = vec![crate::game::Road { id: crate::game::PathId(54), player: Player::White }];
+        let game = make_game(vec![], roads);
+        assert_eq!(game.longest_road(Player::White), 1);
+    }
+
+    #[test]
+    fn test_possible_road_paths_empty_when_no_roads() {
+        // With no existing roads, there are no endpoints to extend from.
+        let game = make_game(vec![], vec![]);
+        assert!(game.possible_road_paths(Player::White).is_empty());
+    }
+
+    #[test]
+    fn test_too_close_intersections_empty_board() {
+        let game = make_game(vec![], vec![]);
+        assert!(game.too_close_intersections().is_empty());
+    }
+
+    #[test]
+    fn test_too_close_intersections_one_building() {
+        // Intersection 10 connects via paths 7 (2–10), 12 (9–10), 13 (10–11).
+        // So building at 10 should block intersections {2, 9, 10, 11}.
+        let buildings = vec![Building {
+            intersection_id: IntersectionId(10),
+            kind: crate::game::BuildingKind::Settlement,
+            player: Player::White,
+        }];
+        let game = make_game(buildings, vec![]);
+        let blocked = game.too_close_intersections();
+        for id in [2, 9, 10, 11] {
+            assert!(blocked.contains(&IntersectionId(id)), "expected {} to be blocked", id);
+        }
+        // Only the 4 intersections touched by paths of intersection 10.
+        assert_eq!(blocked.len(), 4);
+    }
 }

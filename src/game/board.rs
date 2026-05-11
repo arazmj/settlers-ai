@@ -109,7 +109,7 @@ struct TileId(usize);
 
 
 /// A unique identifier for the position of the robber on the game board.
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct RobberId(pub usize);
 
 

@@ -139,7 +139,7 @@ cargo clippy --lib -- -D warnings
 cargo fmt --all -- --check
 ```
 
-The test suite currently has **15 tests** covering encoding round-trips, longest-road calculation, possible-move generation, and minimax move selection.
+The test suite currently has **50 tests** covering encoding round-trips, resource arithmetic, longest-road calculation, possible-move generation, minimax scoring, move application, and move selection.
 
 ## License
 
